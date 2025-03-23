@@ -5,10 +5,11 @@ import "./ReputationRegistry.sol";
 import "./IZkVerifier.sol";
 
 /**
- * @title ConfideFi - Privacy-Preserving DeFi Lending Platform
+ * @title Trifecta Hackathon
  * @dev Smart contract for managing loans with ZK-proof verified creditworthiness
+ * @author junaama
  */
-contract ConfideFi {
+contract Trifecta {
     // ZK Verifier interface
     IZkVerifier public zkVerifier;
     
