@@ -10,24 +10,24 @@ contract MockZkVerifier is IZkVerifier {
     bool private shouldVerify;
     mapping(address => bool) public authorized;
     uint256 private mockScore;
-    
+
     constructor() {
         shouldVerify = false;
         mockScore = 800; // Default mock score
     }
-    
+
     function setShouldVerify(bool _shouldVerify) external {
         shouldVerify = _shouldVerify;
     }
-    
+
     function setMockScore(uint256 _score) external {
         mockScore = _score;
     }
-    
+
     function authorize(address user) external {
         authorized[user] = true;
     }
-    
+
     function verify(bytes memory) external view override returns (bool) {
         require(authorized[msg.sender], "Not authorized");
         return shouldVerify;
@@ -55,12 +55,12 @@ contract TrifectaTest is Test {
     Trifecta trifecta;
     MockZkVerifier mockZkVerifier;
     ReputationRegistry reputationRegistry;
-    
+
     // Test addresses
     address owner;
     address borrower;
     address lender;
-    
+
     // Test constants
     uint256 constant INITIAL_BALANCE = 100 ether;
     uint256 constant LOAN_AMOUNT = 10 ether;
@@ -68,49 +68,43 @@ contract TrifectaTest is Test {
     uint256 constant LOAN_DURATION = 30 days;
     uint256 constant COLLATERAL_RATIO = 15000; // 150% in basis points
     uint256 constant MIN_REPUTATION_SCORE = 700;
-    
+
     function setUp() public {
         // Setup test addresses
         owner = makeAddr("owner");
         borrower = makeAddr("borrower");
         lender = makeAddr("lender");
-        
+
         // Deploy mock contracts
         vm.startPrank(owner);
         mockZkVerifier = new MockZkVerifier();
         reputationRegistry = new ReputationRegistry();
         trifecta = new Trifecta(address(mockZkVerifier), address(reputationRegistry));
-        
+
         // Authorize the Trifecta contract and set verification to true
         mockZkVerifier.authorize(address(trifecta));
         mockZkVerifier.setShouldVerify(true);
-        
+
         // Authorize Trifecta contract in ReputationRegistry
         reputationRegistry.authorizeContract(address(trifecta));
         vm.stopPrank();
-        
+
         // Setup initial balances
         vm.deal(lender, INITIAL_BALANCE);
         vm.deal(borrower, INITIAL_BALANCE);
-        
+
         // Setup initial reputation score for borrower
         vm.prank(owner);
         reputationRegistry.updateScore(borrower, MIN_REPUTATION_SCORE);
     }
-    
+
     // Helper function to create a loan offer
     function createTestLoanOffer() internal returns (uint256) {
         vm.prank(lender);
-        trifecta.createLoanOffer(
-            LOAN_AMOUNT,
-            INTEREST_RATE,
-            LOAN_DURATION,
-            COLLATERAL_RATIO,
-            MIN_REPUTATION_SCORE
-        );
+        trifecta.createLoanOffer(LOAN_AMOUNT, INTEREST_RATE, LOAN_DURATION, COLLATERAL_RATIO, MIN_REPUTATION_SCORE);
         return 1; // First offer ID
     }
-    
+
     // Helper function to generate a mock ZK proof hash
     function generateProofHash(address _borrower) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_borrower, "test_proof"));
@@ -126,7 +120,7 @@ contract TrifectaTest is Test {
     // Loan Offer Tests
     function testCreateLoanOffer() public {
         uint256 offerId = createTestLoanOffer();
-        
+
         Trifecta.LoanOffer memory offer = trifecta.getLoanOfferDetails(offerId);
         assertEq(offer.lender, lender);
         assertEq(offer.amount, LOAN_AMOUNT);
@@ -140,30 +134,18 @@ contract TrifectaTest is Test {
     function testCreateLoanOfferWithZeroAmount() public {
         vm.prank(lender);
         vm.expectRevert("Loan amount must be greater than 0");
-        trifecta.createLoanOffer(
-            0,
-            INTEREST_RATE,
-            LOAN_DURATION,
-            COLLATERAL_RATIO,
-            MIN_REPUTATION_SCORE
-        );
+        trifecta.createLoanOffer(0, INTEREST_RATE, LOAN_DURATION, COLLATERAL_RATIO, MIN_REPUTATION_SCORE);
     }
 
     function testCreateLoanOfferWithZeroDuration() public {
         vm.prank(lender);
         vm.expectRevert("Loan duration must be greater than 0");
-        trifecta.createLoanOffer(
-            LOAN_AMOUNT,
-            INTEREST_RATE,
-            0,
-            COLLATERAL_RATIO,
-            MIN_REPUTATION_SCORE
-        );
+        trifecta.createLoanOffer(LOAN_AMOUNT, INTEREST_RATE, 0, COLLATERAL_RATIO, MIN_REPUTATION_SCORE);
     }
 
     function testGetLenderOffers() public {
         uint256 offerId = createTestLoanOffer();
-        
+
         uint256[] memory offers = trifecta.getLenderOffers(lender);
         assertEq(offers.length, 1);
         assertEq(offers[0], offerId);
@@ -172,27 +154,23 @@ contract TrifectaTest is Test {
     function testMultipleLoanOffers() public {
         // Create first offer
         uint256 firstOfferId = createTestLoanOffer();
-        
+
         // Create second offer with different terms
         vm.prank(lender);
         trifecta.createLoanOffer(
-            LOAN_AMOUNT * 2,
-            INTEREST_RATE * 2,
-            LOAN_DURATION * 2,
-            COLLATERAL_RATIO,
-            MIN_REPUTATION_SCORE
+            LOAN_AMOUNT * 2, INTEREST_RATE * 2, LOAN_DURATION * 2, COLLATERAL_RATIO, MIN_REPUTATION_SCORE
         );
         uint256 secondOfferId = 2;
-        
+
         // Verify both offers exist and have correct terms
         Trifecta.LoanOffer memory firstOffer = trifecta.getLoanOfferDetails(firstOfferId);
         Trifecta.LoanOffer memory secondOffer = trifecta.getLoanOfferDetails(secondOfferId);
-        
+
         assertEq(firstOffer.amount, LOAN_AMOUNT);
         assertEq(secondOffer.amount, LOAN_AMOUNT * 2);
         assertEq(firstOffer.interestRate, INTEREST_RATE);
         assertEq(secondOffer.interestRate, INTEREST_RATE * 2);
-        
+
         // Verify lender's offer list
         uint256[] memory offers = trifecta.getLenderOffers(lender);
         assertEq(offers.length, 2);
@@ -203,7 +181,7 @@ contract TrifectaTest is Test {
     // ZK Proof Verification Tests
     function testSubmitZkProof() public {
         bytes32 proofHash = generateProofHash(borrower);
-        
+
         vm.prank(borrower);
         vm.expectEmit(true, true, false, false);
         emit ZkProofReceived(proofHash, borrower);
@@ -213,14 +191,14 @@ contract TrifectaTest is Test {
     function testReceiveZkProofResult() public {
         bytes32 proofHash = generateProofHash(borrower);
         uint256 newScore = 800;
-        
+
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
         emit ZkProofVerified(proofHash, true, newScore);
         vm.expectEmit(true, false, false, true);
         emit ReputationUpdated(borrower, newScore);
         trifecta.receiveZkProofResult(proofHash, borrower, true, newScore);
-        
+
         (bool isValid, uint256 score, bool isProcessed) = trifecta.verificationResults(proofHash);
         assertTrue(isValid);
         assertEq(score, newScore);
@@ -229,7 +207,7 @@ contract TrifectaTest is Test {
 
     function testReceiveZkProofResultNotOwner() public {
         bytes32 proofHash = generateProofHash(borrower);
-        
+
         vm.prank(borrower);
         vm.expectRevert("Only owner can call this function");
         trifecta.receiveZkProofResult(proofHash, borrower, true, 800);
@@ -240,11 +218,11 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         // Setup proof verification
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         // Request loan
         vm.prank(borrower);
         vm.expectEmit(true, true, false, true);
@@ -252,7 +230,7 @@ contract TrifectaTest is Test {
         emit LoanApproved(1, lender, borrower);
         emit LoanFunded(1, LOAN_AMOUNT);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Verify loan details
         Trifecta.Loan memory loan = trifecta.getLoanDetails(1);
         assertEq(loan.borrower, borrower);
@@ -268,11 +246,11 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         // Setup proof verification
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         // Request loan with insufficient collateral
         vm.prank(borrower);
         vm.expectRevert("Insufficient collateral");
@@ -283,7 +261,7 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         // Request loan without proof verification
         vm.prank(borrower);
         vm.expectRevert("Invalid or unverified ZK proof");
@@ -294,11 +272,11 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         // Setup proof verification with low score
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE - 100);
-        
+
         // Request loan
         vm.prank(borrower);
         vm.expectRevert("Reputation score too low");
@@ -309,20 +287,20 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         // Setup proof verification
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         // Request and complete first loan
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Try to request the same offer again
         bytes32 newProofHash = generateProofHash(borrower);
         vm.prank(owner);
         trifecta.receiveZkProofResult(newProofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         vm.expectRevert("Loan offer is not active");
         trifecta.requestLoan{value: requiredCollateral}(offerId, newProofHash);
@@ -334,22 +312,22 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Calculate total repayment amount
         uint256 totalDue = LOAN_AMOUNT + (LOAN_AMOUNT * INTEREST_RATE / 10000);
-        
+
         // Make full payment
         vm.prank(borrower);
         vm.expectEmit(true, false, false, true);
         emit LoanRepaid(1);
         trifecta.makePayment{value: totalDue}(1);
-        
+
         // Verify loan status and repayment
         Trifecta.Loan memory loan = trifecta.getLoanDetails(1);
         assertEq(uint256(loan.status), uint256(Trifecta.LoanStatus.Repaid));
@@ -361,20 +339,20 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Make partial payment
         uint256 partialPayment = LOAN_AMOUNT / 2;
         vm.prank(borrower);
         vm.expectEmit(true, false, false, true);
         emit PaymentMade(1, partialPayment, LOAN_AMOUNT + (LOAN_AMOUNT * INTEREST_RATE / 10000) - partialPayment);
         trifecta.makePayment{value: partialPayment}(1);
-        
+
         // Verify loan status and partial repayment
         Trifecta.Loan memory loan = trifecta.getLoanDetails(1);
         assertEq(uint256(loan.status), uint256(Trifecta.LoanStatus.Active));
@@ -386,13 +364,13 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Try to make payment from different address
         vm.prank(lender);
         vm.expectRevert("Only borrower can call this function");
@@ -404,22 +382,22 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Move time forward past default threshold
         vm.warp(block.timestamp + LOAN_DURATION + 8 days);
-        
+
         // Check loan default
         vm.expectEmit(true, false, false, true);
         emit LoanDefaulted(1);
         emit CollateralLiquidated(1, requiredCollateral);
         trifecta.checkLoanDefault(1);
-        
+
         // Verify loan status
         Trifecta.Loan memory loan = trifecta.getLoanDetails(1);
         assertEq(uint256(loan.status), uint256(Trifecta.LoanStatus.Defaulted));
@@ -430,23 +408,23 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Get initial loan state
         Trifecta.Loan memory initialLoan = trifecta.getLoanDetails(1);
         uint256 initialNextPaymentDue = initialLoan.nextPaymentDue;
-        
+
         // Move time forward but not past default threshold (7 days)
         vm.warp(initialNextPaymentDue + 6 days);
-        
+
         // Check loan default - should not default yet
         trifecta.checkLoanDefault(1);
-        
+
         // Verify loan still active
         Trifecta.Loan memory loan = trifecta.getLoanDetails(1);
         assertEq(uint256(loan.status), uint256(Trifecta.LoanStatus.Active));
@@ -457,23 +435,23 @@ contract TrifectaTest is Test {
         uint256 offerId = createTestLoanOffer();
         bytes32 proofHash = generateProofHash(borrower);
         uint256 requiredCollateral = (LOAN_AMOUNT * COLLATERAL_RATIO) / 10000;
-        
+
         vm.prank(owner);
         trifecta.receiveZkProofResult(proofHash, borrower, true, MIN_REPUTATION_SCORE);
-        
+
         vm.prank(borrower);
         trifecta.requestLoan{value: requiredCollateral}(offerId, proofHash);
-        
+
         // Get initial reputation score
         uint256 initialScore = trifecta.getBorrowerScore(borrower);
-        
+
         // Make full payment
         uint256 totalDue = LOAN_AMOUNT + (LOAN_AMOUNT * INTEREST_RATE / 10000);
         vm.prank(borrower);
         trifecta.makePayment{value: totalDue}(1);
-        
+
         // Verify reputation score increased
         uint256 newScore = trifecta.getBorrowerScore(borrower);
         assertTrue(newScore > initialScore);
     }
-} 
+}

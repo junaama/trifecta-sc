@@ -8,36 +8,36 @@ pragma solidity ^0.8.13;
 contract ReputationRegistry {
     // Owner of the contract
     address public owner;
-    
+
     // Mapping of borrower addresses to their reputation scores
     mapping(address => uint256) private reputationScores;
-    
+
     // Authorized contracts that can update scores
     mapping(address => bool) public authorizedContracts;
-    
+
     // Events
     event ScoreUpdated(address indexed borrower, uint256 newScore);
     event ContractAuthorized(address indexed contractAddress);
     event ContractDeauthorized(address indexed contractAddress);
-    
+
     // Modifiers
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
         _;
     }
-    
+
     modifier onlyAuthorized() {
         require(authorizedContracts[msg.sender] || msg.sender == owner, "Not authorized");
         _;
     }
-    
+
     /**
      * @dev Contract constructor
      */
     constructor() {
         owner = msg.sender;
     }
-    
+
     /**
      * @dev Authorizes a contract to update reputation scores
      * @param _contract Address of the contract to authorize
@@ -46,7 +46,7 @@ contract ReputationRegistry {
         authorizedContracts[_contract] = true;
         emit ContractAuthorized(_contract);
     }
-    
+
     /**
      * @dev Deauthorizes a contract from updating reputation scores
      * @param _contract Address of the contract to deauthorize
@@ -55,7 +55,7 @@ contract ReputationRegistry {
         authorizedContracts[_contract] = false;
         emit ContractDeauthorized(_contract);
     }
-    
+
     /**
      * @dev Updates a borrower's reputation score
      * @param _borrower Address of the borrower
@@ -65,7 +65,7 @@ contract ReputationRegistry {
         reputationScores[_borrower] = _score;
         emit ScoreUpdated(_borrower, _score);
     }
-    
+
     /**
      * @dev Gets a borrower's reputation score
      * @param _borrower Address of the borrower
@@ -74,7 +74,7 @@ contract ReputationRegistry {
     function getScore(address _borrower) external view returns (uint256) {
         return reputationScores[_borrower];
     }
-    
+
     /**
      * @dev Initializes a borrower's reputation score if not set
      * @param _borrower Address of the borrower

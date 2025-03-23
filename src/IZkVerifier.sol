@@ -12,7 +12,7 @@ interface IZkVerifier {
      * @return True if the proof is valid
      */
     function verify(bytes memory _proof) external returns (bool);
-    
+
     /**
      * @dev Extracts reputation score from a verified proof
      * @param _proof The zero-knowledge proof
